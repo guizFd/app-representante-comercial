@@ -48,13 +48,27 @@ const precoVenda = (p) => (p && p.custo != null && p.margem != null) ? calcVenda
 const normalizaProduto = (p) => {
   const margem = (typeof p.margem === "number") ? p.margem : 15;
   const custo = (typeof p.custo === "number") ? p.custo : (Number(p.preco) || 0);
-  return { ...p, custo, margem, preco: calcVenda(custo, margem) };
+  const historicoCusto = Array.isArray(p.historicoCusto) ? p.historicoCusto : [];
+  return { ...p, custo, margem, preco: calcVenda(custo, margem), historicoCusto };
+};
+// Registra o custo do dia no histórico (um ponto por dia; sobrescreve o de hoje).
+const registraCusto = (produto, novoCusto) => {
+  const hoje = hojeISO();
+  const hist = (produto.historicoCusto || []).filter((h) => h.data !== hoje);
+  hist.push({ data: hoje, custo: Number(novoCusto) || 0 });
+  return hist.slice(-60);
+};
+// Último custo registrado em um dia anterior a hoje (para mostrar tendência).
+const custoAnterior = (produto) => {
+  const hoje = hojeISO();
+  const ant = (produto.historicoCusto || []).filter((h) => h.data < hoje).sort((a, b) => a.data.localeCompare(b.data));
+  return ant.length ? ant[ant.length - 1].custo : null;
 };
 
 /* ---------------- Constantes ---------------- */
 const REGIOES = ["Asa Norte", "Asa Sul", "Guará", "Águas Claras", "Taguatinga", "Ceilândia", "Samambaia", "Gama", "Santa Maria", "Sobradinho", "Planaltina", "Vicente Pires"];
 const TIPOS_ESTAB = ["Supermercado", "Mercadinho", "Restaurante", "Padaria", "Lanchonete", "Hotel", "Cozinha industrial", "Pizzaria", "Empório", "Outro"];
-const CATEGORIAS = ["Bovino", "Suíno", "Ave", "Peixe", "Outros"];
+const CATEGORIAS = ["Frango", "Bovino", "Linguiças", "Peixe", "Frios e Embutidos", "Suíno", "Suíno Salgado"];
 const FORMAS_PGTO = ["Boleto 28 dias", "Boleto 14 dias", "Pix à vista", "Pix 7 dias", "Cartão", "Dinheiro"];
 const STATUS_PEDIDO = ["Rascunho", "Enviado", "Confirmado", "Faturado", "Entregue", "Cancelado"];
 const STATUS_VISITA = ["Não iniciada", "A caminho", "Em atendimento", "Visita concluída", "Cliente ausente", "Reagendada"];
@@ -64,32 +78,100 @@ const STATUS_COMISSAO = ["Prevista", "Aguardando pagamento do cliente", "Liberad
 
 /* ---------------- Dados de demonstração (fictícios — Brasília/DF) ---------------- */
 const seedEmpresas = [
-  { id: "e1", nome: "Frigorífico Boi Forte", comissaoPadrao: 5 },
-  { id: "e2", nome: "Aves & Suínos Planalto", comissaoPadrao: 5 },
-  { id: "e3", nome: "Pescados do Cerrado", comissaoPadrao: 6 },
+  { id: "e1", nome: "Bovinos", comissaoPadrao: 5 },
+  { id: "e2", nome: "Aves, Suínos e Frios", comissaoPadrao: 5 },
+  { id: "e3", nome: "Pescados", comissaoPadrao: 6 },
 ];
 
 const seedProdutos = [
-  { id: "p1", nome: "Coxão mole kg", marca: "Boi Forte", categoria: "Bovino", codigo: "BV-01", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 28.90, margem: 12, preco: 32.37, precoPromo: null, comissaoPct: 5, estoque: 120, pedidoMin: 5, validade: "5 dias", status: "Ativo", empresaId: "e1", descricao: "Corte magro, ótimo para bifes e escalopes.", relacionados: [] },
-  { id: "p2", nome: "Patinho kg", marca: "Boi Forte", categoria: "Bovino", codigo: "BV-02", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 27.50, margem: 12, preco: 30.80, precoPromo: null, comissaoPct: 5, estoque: 110, pedidoMin: 5, validade: "5 dias", status: "Ativo", empresaId: "e1", descricao: "Versátil, indicado para moer e para cozidos.", relacionados: [] },
-  { id: "p3", nome: "Acém kg", marca: "Boi Forte", categoria: "Bovino", codigo: "BV-03", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 22.90, margem: 15, preco: 26.34, precoPromo: null, comissaoPct: 5, estoque: 130, pedidoMin: 5, validade: "5 dias", status: "Ativo", empresaId: "e1", descricao: "Corte econômico para ensopados e picadinho.", relacionados: [] },
-  { id: "p4", nome: "Costela bovina kg", marca: "Boi Forte", categoria: "Bovino", codigo: "BV-04", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 24.90, margem: 15, preco: 28.64, precoPromo: null, comissaoPct: 5, estoque: 90, pedidoMin: 5, validade: "5 dias", status: "Ativo", empresaId: "e1", descricao: "Ideal para assados e churrasco.", relacionados: [] },
-  { id: "p5", nome: "Picanha kg", marca: "Boi Forte", categoria: "Bovino", codigo: "BV-05", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 74.90, margem: 10, preco: 82.39, precoPromo: null, comissaoPct: 5, estoque: 40, pedidoMin: 2, validade: "5 dias", status: "Ativo", empresaId: "e1", descricao: "Corte nobre, alta saída no fim de semana.", relacionados: [] },
-  { id: "p6", nome: "Músculo kg", marca: "Boi Forte", categoria: "Bovino", codigo: "BV-06", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 26.90, margem: 14, preco: 30.67, precoPromo: null, comissaoPct: 5, estoque: 100, pedidoMin: 5, validade: "5 dias", status: "Ativo", empresaId: "e1", descricao: "Rico em colágeno, para sopas e cozidos.", relacionados: [] },
-  { id: "p7", nome: "Pernil suíno kg", marca: "Planalto", categoria: "Suíno", codigo: "SU-01", foto: "🐖", unidade: "kg", qtdCaixa: 1, custo: 16.90, margem: 18, preco: 19.94, precoPromo: null, comissaoPct: 5, estoque: 100, pedidoMin: 5, validade: "5 dias", status: "Ativo", empresaId: "e2", descricao: "Peça para assar, boa margem.", relacionados: [] },
-  { id: "p8", nome: "Costela suína kg", marca: "Planalto", categoria: "Suíno", codigo: "SU-02", foto: "🐖", unidade: "kg", qtdCaixa: 1, custo: 21.90, margem: 15, preco: 25.19, precoPromo: null, comissaoPct: 5, estoque: 80, pedidoMin: 5, validade: "5 dias", status: "Ativo", empresaId: "e2", descricao: "Costela para churrasco e forno.", relacionados: [] },
-  { id: "p9", nome: "Lombo suíno kg", marca: "Planalto", categoria: "Suíno", codigo: "SU-03", foto: "🐖", unidade: "kg", qtdCaixa: 1, custo: 19.90, margem: 16, preco: 23.08, precoPromo: null, comissaoPct: 5, estoque: 70, pedidoMin: 5, validade: "5 dias", status: "Ativo", empresaId: "e2", descricao: "Corte magro, versátil.", relacionados: [] },
-  { id: "p10", nome: "Linguiça toscana kg", marca: "Planalto", categoria: "Suíno", codigo: "SU-04", foto: "🌭", unidade: "kg", qtdCaixa: 1, custo: 15.90, margem: 20, preco: 19.08, precoPromo: null, comissaoPct: 5, estoque: 120, pedidoMin: 5, validade: "10 dias", status: "Ativo", empresaId: "e2", descricao: "Alta saída em lanchonetes e churrasco.", relacionados: [] },
-  { id: "p11", nome: "Bacon kg", marca: "Planalto", categoria: "Suíno", codigo: "SU-05", foto: "🥓", unidade: "kg", qtdCaixa: 1, custo: 23.90, margem: 18, preco: 28.20, precoPromo: null, comissaoPct: 5, estoque: 90, pedidoMin: 3, validade: "20 dias", status: "Ativo", empresaId: "e2", descricao: "Defumado, para lanches e pratos.", relacionados: [] },
-  { id: "p12", nome: "Peito de frango kg", marca: "Planalto", categoria: "Ave", codigo: "AV-01", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 13.90, margem: 18, preco: 16.40, precoPromo: null, comissaoPct: 5, estoque: 200, pedidoMin: 5, validade: "4 dias", status: "Ativo", empresaId: "e2", descricao: "Filé sem osso, grande giro.", relacionados: [] },
-  { id: "p13", nome: "Coxa e sobrecoxa kg", marca: "Planalto", categoria: "Ave", codigo: "AV-02", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 11.90, margem: 20, preco: 14.28, precoPromo: null, comissaoPct: 5, estoque: 220, pedidoMin: 5, validade: "4 dias", status: "Ativo", empresaId: "e2", descricao: "Corte econômico, muito procurado.", relacionados: [] },
-  { id: "p14", nome: "Frango inteiro kg", marca: "Planalto", categoria: "Ave", codigo: "AV-03", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 10.90, margem: 18, preco: 12.86, precoPromo: null, comissaoPct: 5, estoque: 180, pedidoMin: 5, validade: "4 dias", status: "Ativo", empresaId: "e2", descricao: "Resfriado, para assar e cozinhar.", relacionados: [] },
-  { id: "p15", nome: "Asa de frango kg", marca: "Planalto", categoria: "Ave", codigo: "AV-04", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 15.90, margem: 16, preco: 18.44, precoPromo: null, comissaoPct: 5, estoque: 140, pedidoMin: 5, validade: "4 dias", status: "Ativo", empresaId: "e2", descricao: "Alta saída em bares e petiscarias.", relacionados: [] },
-  { id: "p16", nome: "Filé de tilápia kg", marca: "Pescados", categoria: "Peixe", codigo: "PX-01", foto: "🐟", unidade: "kg", qtdCaixa: 1, custo: 32.90, margem: 15, preco: 37.84, precoPromo: null, comissaoPct: 6, estoque: 90, pedidoMin: 3, validade: "3 dias", status: "Ativo", empresaId: "e3", descricao: "Filé limpo, sem espinhas.", relacionados: [] },
-  { id: "p17", nome: "Salmão fresco kg", marca: "Pescados", categoria: "Peixe", codigo: "PX-02", foto: "🐟", unidade: "kg", qtdCaixa: 1, custo: 79.90, margem: 12, preco: 89.49, precoPromo: null, comissaoPct: 6, estoque: 40, pedidoMin: 2, validade: "3 dias", status: "Ativo", empresaId: "e3", descricao: "Posta/filé, produto premium.", relacionados: [] },
-  { id: "p18", nome: "Filé de merluza kg", marca: "Pescados", categoria: "Peixe", codigo: "PX-03", foto: "🐟", unidade: "kg", qtdCaixa: 1, custo: 27.90, margem: 15, preco: 32.09, precoPromo: null, comissaoPct: 6, estoque: 90, pedidoMin: 3, validade: "3 dias", status: "Ativo", empresaId: "e3", descricao: "Filé congelado, prático.", relacionados: [] },
-  { id: "p19", nome: "Sardinha kg", marca: "Pescados", categoria: "Peixe", codigo: "PX-04", foto: "🐟", unidade: "kg", qtdCaixa: 1, custo: 18.90, margem: 18, preco: 22.30, precoPromo: null, comissaoPct: 6, estoque: 100, pedidoMin: 5, validade: "3 dias", status: "Ativo", empresaId: "e3", descricao: "Fresca, para fritura e assados.", relacionados: [] },
-  { id: "p20", nome: "Camarão limpo kg", marca: "Pescados", categoria: "Peixe", codigo: "PX-05", foto: "🦐", unidade: "kg", qtdCaixa: 1, custo: 54.90, margem: 14, preco: 62.59, precoPromo: null, comissaoPct: 6, estoque: 50, pedidoMin: 2, validade: "3 dias", status: "Ativo", empresaId: "e3", descricao: "Limpo e descascado, alta margem.", relacionados: [] },
+  { id: "p1", nome: "Coxinha Seara IQF", marca: "", categoria: "Frango", codigo: "FR-01", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p2", nome: "Coxinha LAR Superfrango", marca: "", categoria: "Frango", codigo: "FR-02", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p3", nome: "Coxa s/Coxa", marca: "", categoria: "Frango", codigo: "FR-03", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p4", nome: "Peito com Osso", marca: "", categoria: "Frango", codigo: "FR-04", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p5", nome: "Asa Completa", marca: "", categoria: "Frango", codigo: "FR-05", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p6", nome: "Meio da Asa", marca: "", categoria: "Frango", codigo: "FR-06", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p7", nome: "Filé de Peito", marca: "", categoria: "Frango", codigo: "FR-07", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p8", nome: "Filé de Sassami", marca: "", categoria: "Frango", codigo: "FR-08", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p9", nome: "Frango Seara (para Assador)", marca: "", categoria: "Frango", codigo: "FR-09", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p10", nome: "Frango Inteiro Saboroso", marca: "", categoria: "Frango", codigo: "FR-10", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p11", nome: "Frango Inteiro Francap", marca: "", categoria: "Frango", codigo: "FR-11", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p12", nome: "Coração de Frango", marca: "", categoria: "Frango", codigo: "FR-12", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p13", nome: "Pé de Frango", marca: "", categoria: "Frango", codigo: "FR-13", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p14", nome: "Moela", marca: "", categoria: "Frango", codigo: "FR-14", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p15", nome: "Pescoço de Peru Perdigão", marca: "", categoria: "Frango", codigo: "FR-15", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p16", nome: "Petisco Copacol", marca: "", categoria: "Frango", codigo: "FR-16", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p17", nome: "Frango a Passarinho Copacol", marca: "", categoria: "Frango", codigo: "FR-17", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p18", nome: "Galinha Saborosa P", marca: "", categoria: "Frango", codigo: "FR-18", foto: "🍗", unidade: "unidade", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p19", nome: "Galinha Saborosa G", marca: "", categoria: "Frango", codigo: "FR-19", foto: "🍗", unidade: "unidade", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p20", nome: "Fígado Bovino", marca: "", categoria: "Bovino", codigo: "BV-01", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p21", nome: "Rabada Inteira", marca: "", categoria: "Bovino", codigo: "BV-02", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p22", nome: "Rabada Serrada", marca: "", categoria: "Bovino", codigo: "BV-03", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p23", nome: "Mocotó Inteiro", marca: "", categoria: "Bovino", codigo: "BV-04", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p24", nome: "Mocotó Serrado", marca: "", categoria: "Bovino", codigo: "BV-05", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p25", nome: "Bucho", marca: "", categoria: "Bovino", codigo: "BV-06", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p26", nome: "Alcatra Completa Grill", marca: "", categoria: "Bovino", codigo: "BV-07", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p27", nome: "Alcatra c/ Maminha", marca: "", categoria: "Bovino", codigo: "BV-08", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p28", nome: "Picanha Grill", marca: "", categoria: "Bovino", codigo: "BV-09", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p29", nome: "Picanha A", marca: "", categoria: "Bovino", codigo: "BV-10", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p30", nome: "Picanha B", marca: "", categoria: "Bovino", codigo: "BV-11", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p31", nome: "Picanha Fatiada", marca: "", categoria: "Bovino", codigo: "BV-12", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p32", nome: "Filé Mignon sem Cordão", marca: "", categoria: "Bovino", codigo: "BV-13", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p33", nome: "Contra Filé Grill", marca: "", categoria: "Bovino", codigo: "BV-14", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p34", nome: "Contra Filé", marca: "", categoria: "Bovino", codigo: "BV-15", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p35", nome: "Coxão Mole", marca: "", categoria: "Bovino", codigo: "BV-16", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p36", nome: "Coxão Duro", marca: "", categoria: "Bovino", codigo: "BV-17", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p37", nome: "Lagarto", marca: "", categoria: "Bovino", codigo: "BV-18", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p38", nome: "Cupim Grill", marca: "", categoria: "Bovino", codigo: "BV-19", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p39", nome: "Cupim A", marca: "", categoria: "Bovino", codigo: "BV-20", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p40", nome: "Cupim B", marca: "", categoria: "Bovino", codigo: "BV-21", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p41", nome: "Fraldinha", marca: "", categoria: "Bovino", codigo: "BV-22", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p42", nome: "Capa de Contra Filé Grill", marca: "", categoria: "Bovino", codigo: "BV-23", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p43", nome: "Capa de Contra Filé", marca: "", categoria: "Bovino", codigo: "BV-24", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p44", nome: "Capa de Coxão Mole", marca: "", categoria: "Bovino", codigo: "BV-25", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p45", nome: "Charque Manta", marca: "", categoria: "Bovino", codigo: "BV-26", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p46", nome: "Costela Bovina Janela", marca: "", categoria: "Bovino", codigo: "BV-27", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p47", nome: "Costela Bovina Minga", marca: "", categoria: "Bovino", codigo: "BV-28", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p48", nome: "Costela Bovina em Tiras", marca: "", categoria: "Bovino", codigo: "BV-29", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p49", nome: "Músculo Bovino", marca: "", categoria: "Bovino", codigo: "BV-30", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p50", nome: "Paleta Bovina", marca: "", categoria: "Bovino", codigo: "BV-31", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p51", nome: "Peito Bovino", marca: "", categoria: "Bovino", codigo: "BV-32", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p52", nome: "Acém sem Osso", marca: "", categoria: "Bovino", codigo: "BV-33", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p53", nome: "Carne Moída A", marca: "", categoria: "Bovino", codigo: "BV-34", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p54", nome: "Lombinho Bovino", marca: "", categoria: "Bovino", codigo: "BV-35", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p55", nome: "Bife do Vazio", marca: "", categoria: "Bovino", codigo: "BV-36", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p56", nome: "Ubre", marca: "", categoria: "Bovino", codigo: "BV-37", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p57", nome: "Gordura Bovina", marca: "", categoria: "Bovino", codigo: "BV-38", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e1", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p58", nome: "Linguiça Aurora Frango", marca: "", categoria: "Linguiças", codigo: "LG-01", foto: "🌭", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p59", nome: "Linguiça Superfrango Grossa", marca: "", categoria: "Linguiças", codigo: "LG-02", foto: "🌭", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p60", nome: "Linguiça Aurora Churrasco", marca: "", categoria: "Linguiças", codigo: "LG-03", foto: "🌭", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p61", nome: "Linguiça Suína Seara", marca: "", categoria: "Linguiças", codigo: "LG-04", foto: "🌭", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p62", nome: "Linguiça Suína Perdigão", marca: "", categoria: "Linguiças", codigo: "LG-05", foto: "🌭", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p63", nome: "Linguiça Copacol Frango Fina", marca: "", categoria: "Linguiças", codigo: "LG-06", foto: "🌭", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p64", nome: "Filé de Tilápia Copacol 800g", marca: "", categoria: "Peixe", codigo: "PX-01", foto: "🐟", unidade: "pacote", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e3", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p65", nome: "Filé de Tilápia a Granel", marca: "", categoria: "Peixe", codigo: "PX-02", foto: "🐟", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e3", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p66", nome: "Posta de Tilápia", marca: "", categoria: "Peixe", codigo: "PX-03", foto: "🐟", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e3", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p67", nome: "Bacon Seara/Rezende", marca: "", categoria: "Frios e Embutidos", codigo: "FE-01", foto: "🥓", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p68", nome: "Bacon Excelência", marca: "", categoria: "Frios e Embutidos", codigo: "FE-02", foto: "🥓", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p69", nome: "Calabresa Reta Rezende", marca: "", categoria: "Frios e Embutidos", codigo: "FE-03", foto: "🥓", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p70", nome: "Calabresa Seara", marca: "", categoria: "Frios e Embutidos", codigo: "FE-04", foto: "🥓", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p71", nome: "Calabresa Perdigão", marca: "", categoria: "Frios e Embutidos", codigo: "FE-05", foto: "🥓", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p72", nome: "Salsicha Copacol", marca: "", categoria: "Frios e Embutidos", codigo: "FE-06", foto: "🥓", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p73", nome: "Salsicha Rezende", marca: "", categoria: "Frios e Embutidos", codigo: "FE-07", foto: "🥓", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p74", nome: "Salsicha Perdigão", marca: "", categoria: "Frios e Embutidos", codigo: "FE-08", foto: "🥓", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p75", nome: "Batata Copacol/Mais", marca: "", categoria: "Frios e Embutidos", codigo: "FE-09", foto: "🥓", unidade: "pacote", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p76", nome: "Batata EasyChef/Uai", marca: "", categoria: "Frios e Embutidos", codigo: "FE-10", foto: "🥓", unidade: "pacote", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p77", nome: "Costela Suína (Padrão Outback)", marca: "", categoria: "Suíno", codigo: "SU-01", foto: "🐖", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p78", nome: "Costela Suína", marca: "", categoria: "Suíno", codigo: "SU-02", foto: "🐖", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p79", nome: "Bisteca Suína", marca: "", categoria: "Suíno", codigo: "SU-03", foto: "🐖", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p80", nome: "Carré Inteiro", marca: "", categoria: "Suíno", codigo: "SU-04", foto: "🐖", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p81", nome: "Pernil Suíno sem Osso", marca: "", categoria: "Suíno", codigo: "SU-05", foto: "🐖", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p82", nome: "Paleta Suína sem Osso", marca: "", categoria: "Suíno", codigo: "SU-06", foto: "🐖", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p83", nome: "Toucinho Manta", marca: "", categoria: "Suíno", codigo: "SU-07", foto: "🐖", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p84", nome: "Kit Feijoada", marca: "", categoria: "Suíno Salgado", codigo: "SS-01", foto: "🧂", unidade: "kit", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p85", nome: "Pé Salgado Serrado", marca: "", categoria: "Suíno Salgado", codigo: "SS-02", foto: "🧂", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p86", nome: "Orelha Salgada", marca: "", categoria: "Suíno Salgado", codigo: "SS-03", foto: "🧂", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p87", nome: "Costela Salgada", marca: "", categoria: "Suíno Salgado", codigo: "SS-04", foto: "🧂", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
+  { id: "p88", nome: "Rabo Salgado", marca: "", categoria: "Suíno Salgado", codigo: "SS-05", foto: "🧂", unidade: "kg", qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "", status: "Ativo", empresaId: "e2", descricao: "", relacionados: [], historicoCusto: [] },
 ];
 
 const seedClientes = [
@@ -901,7 +983,7 @@ function ClienteForm({ db, view, nav, up, notify }) {
     id: uid(), fantasia: "", razao: "", cnpj: "", comprador: "", telefone: "", whatsapp: "", email: "",
     endereco: "", regiao: REGIOES[0], tipo: TIPOS_ESTAB[0], horario: "", diaPreferencial: "",
     limiteCredito: 0, pagamentoPreferido: FORMAS_PGTO[0], cicloMedio: 30, ticketMedio: 0,
-    produtosFavoritos: [], obs: "", status: "Ativo", altoPotencial: false,
+    produtosFavoritos: [], obs: "", status: "Ativo", altoPotencial: false, descontoPct: 0,
   });
   const set = (k, v) => setF((o) => ({ ...o, [k]: v }));
   const salvar = () => {
@@ -943,6 +1025,7 @@ function ClienteForm({ db, view, nav, up, notify }) {
           <Inp label="Ciclo médio (dias)" type="number" value={f.cicloMedio} onChange={(e) => set("cicloMedio", Number(e.target.value))} />
           <Inp label="Ticket médio (R$)" type="number" value={f.ticketMedio} onChange={(e) => set("ticketMedio", Number(e.target.value))} />
         </div>
+        <Inp label="Desconto especial deste cliente (%)" type="number" min="0" max="30" value={f.descontoPct ?? 0} onChange={(e) => set("descontoPct", Number(e.target.value))} />
         <Txa label="Observações" rows={3} value={f.obs} onChange={(e) => set("obs", e.target.value)} />
         <div className="grid grid-cols-2 gap-3">
           <Sel label="Status" value={f.status} onChange={(e) => set("status", e.target.value)}><option>Ativo</option><option>Inativo</option></Sel>
@@ -1122,19 +1205,25 @@ function PedidoForm({ db, view, nav, up, notify }) {
   const [previsaoEntrega, setPrevisaoEntrega] = useState(editando?.previsaoEntrega || dOff(2));
   const [obs, setObs] = useState(editando?.obs || "");
   const [buscaProd, setBuscaProd] = useState("");
+  const [catProd, setCatProd] = useState("Todas");
 
   const cliente = db.clientes.find((c) => c.id === clienteId);
-  const addItem = (pr) => {
-    setItens((arr) => {
-      const ex = arr.find((i) => i.produtoId === pr.id);
-      if (ex) return arr.map((i) => (i.produtoId === pr.id ? { ...i, qtd: i.qtd + 1 } : i));
-      return [...arr, { produtoId: pr.id, qtd: pr.pedidoMin || 1, preco: precoVenda(pr) }];
-    });
-  };
-  const setQtd = (id, q) => setItens((arr) => arr.map((i) => (i.produtoId === id ? { ...i, qtd: Math.max(0, q) } : i)).filter((i) => i.qtd > 0));
-  const setPreco = (id, v) => setItens((arr) => arr.map((i) => (i.produtoId === id ? { ...i, preco: v } : i)));
+  const descCliente = Number(cliente?.descontoPct) || 0;
+  const precoCliente = (pr) => Math.round(precoVenda(pr) * (1 - descCliente / 100) * 100) / 100;
 
-  const produtosFiltrados = db.produtos.filter((p) => p.status === "Ativo" && (`${p.nome} ${p.marca} ${p.categoria}`.toLowerCase().includes(buscaProd.trim().toLowerCase())));
+  const getItem = (id) => itens.find((i) => i.produtoId === id);
+  const setQtd = (pr, q) => setItens((arr) => {
+    const qq = Math.max(0, Number(q) || 0);
+    const ex = arr.find((i) => i.produtoId === pr.id);
+    if (qq === 0) return arr.filter((i) => i.produtoId !== pr.id);
+    if (ex) return arr.map((i) => (i.produtoId === pr.id ? { ...i, qtd: qq } : i));
+    return [...arr, { produtoId: pr.id, qtd: qq, preco: precoCliente(pr) }];
+  });
+  const setPreco = (id, v) => setItens((arr) => arr.map((i) => (i.produtoId === id ? { ...i, preco: Number(v) || 0 } : i)));
+
+  const ativos = db.produtos.filter((p) => p.status === "Ativo" && (`${p.nome} ${p.marca} ${p.categoria}`.toLowerCase().includes(buscaProd.trim().toLowerCase())));
+  const cats = ["Todas", ...CATEGORIAS.filter((c) => ativos.some((p) => p.categoria === c))];
+  const catsMostrar = catProd === "Todas" ? cats.filter((c) => c !== "Todas") : [catProd];
   const rascunho = { itens, descontoPct };
   const { sub, desc, total } = totalPedido(rascunho);
   const com = comissaoPedido(rascunho, db.produtos);
@@ -1168,47 +1257,63 @@ function PedidoForm({ db, view, nav, up, notify }) {
         {cliente && <Card className="p-3 text-sm"><span className="font-bold text-gray-900">{cliente.fantasia}</span> · pagamento {cliente.pagamentoPreferido}</Card>}
 
         <div>
-          <p className="text-xs font-semibold text-gray-500 mb-1.5">Itens do pedido</p>
-          {itens.length === 0 ? <p className="text-sm text-gray-400 mb-2">Nenhum item ainda. Busque produtos abaixo.</p> : (
-            <div className="space-y-2 mb-3">
-              {itens.map((i) => (
-                <Card key={i.produtoId} className="p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-gray-800 flex-1 truncate">{nomeProd(i.produtoId)}</p>
-                    <button onClick={() => setQtd(i.produtoId, 0)} className="text-gray-300 hover:text-red-500"><X className="w-4 h-4" /></button>
-                  </div>
-                  <div className="flex items-center gap-2 mt-2">
-                    <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden">
-                      <button onClick={() => setQtd(i.produtoId, i.qtd - 1)} className="px-2.5 py-1.5 text-gray-600 hover:bg-gray-50">−</button>
-                      <input type="number" value={i.qtd} onChange={(e) => setQtd(i.produtoId, Number(e.target.value))} className="w-12 text-center text-sm py-1.5 focus:outline-none" />
-                      <button onClick={() => setQtd(i.produtoId, i.qtd + 1)} className="px-2.5 py-1.5 text-gray-600 hover:bg-gray-50">+</button>
-                    </div>
-                    <div className="flex items-center gap-1 text-sm">
-                      <span className="text-gray-400">R$</span>
-                      <input type="number" step="0.01" value={i.preco} onChange={(e) => setPreco(i.produtoId, Number(e.target.value))} className="w-20 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700" />
-                    </div>
-                    <span className="ml-auto text-sm font-bold text-gray-900">{fmtBRL(i.qtd * i.preco)}</span>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-          <div className="relative">
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-xs font-semibold text-gray-500">Produtos {descCliente > 0 && <span className="text-emerald-700">· preço do cliente (−{descCliente}%)</span>}</p>
+            <span className="text-xs text-gray-400">{itens.length} no pedido</span>
+          </div>
+          <div className="relative mb-2">
             <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
-            <input value={buscaProd} onChange={(e) => setBuscaProd(e.target.value)} placeholder="Buscar produto para adicionar…"
+            <input value={buscaProd} onChange={(e) => setBuscaProd(e.target.value)} placeholder="Buscar produto…"
               className="w-full rounded-xl border border-gray-200 bg-white pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700" />
           </div>
-          {buscaProd && (
-            <div className="mt-2 space-y-1.5 max-h-64 overflow-y-auto">
-              {produtosFiltrados.slice(0, 8).map((pr) => (
-                <button key={pr.id} onClick={() => { addItem(pr); setBuscaProd(""); }} className="w-full flex items-center gap-3 p-2.5 rounded-xl border border-gray-100 hover:bg-emerald-50 text-left">
-                  <span className="text-xl">{pr.foto}</span>
-                  <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-gray-800 truncate">{pr.nome}</p><p className="text-xs text-gray-500">{fmtBRL(precoVenda(pr))} · mín {pr.pedidoMin} kg</p></div>
-                  <Plus className="w-4 h-4 text-emerald-700" />
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="flex gap-2 overflow-x-auto pb-1 mb-1">
+            {cats.map((c) => <Chip key={c} ativo={catProd === c} onClick={() => setCatProd(c)}>{c}</Chip>)}
+          </div>
+
+          {ativos.length === 0 ? <p className="text-sm text-gray-400 py-3">Nenhum produto encontrado.</p> : catsMostrar.map((cat) => {
+            const doGrupo = ativos.filter((pp) => pp.categoria === cat);
+            if (!doGrupo.length) return null;
+            return (
+              <div key={cat} className="mb-3">
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mt-2 mb-1">{cat}</p>
+                <div className="space-y-1.5">
+                  {doGrupo.map((pr) => {
+                    const it = getItem(pr.id);
+                    const q = it ? it.qtd : 0;
+                    const ativo = q > 0;
+                    return (
+                      <Card key={pr.id} className={`p-2.5 ${ativo ? "ring-1 ring-emerald-600" : ""}`}>
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-xl">{pr.foto}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 truncate">{pr.nome}</p>
+                            <p className="text-[11px] text-gray-500">{fmtBRL(precoCliente(pr))} / {pr.unidade}</p>
+                          </div>
+                          {!ativo ? (
+                            <Btn variant="claro" className="!py-1.5 !px-3" onClick={() => setQtd(pr, pr.pedidoMin || 1)}><Plus className="w-4 h-4" /></Btn>
+                          ) : (
+                            <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden">
+                              <button onClick={() => setQtd(pr, q - 1)} className="px-2.5 py-1.5 text-gray-600 hover:bg-gray-50">−</button>
+                              <input type="number" step="0.001" inputMode="decimal" value={q} onChange={(e) => setQtd(pr, e.target.value)} className="w-16 text-center text-sm py-1.5 focus:outline-none" />
+                              <button onClick={() => setQtd(pr, q + 1)} className="px-2.5 py-1.5 text-gray-600 hover:bg-gray-50">+</button>
+                            </div>
+                          )}
+                        </div>
+                        {ativo && (
+                          <div className="flex items-center gap-2 mt-2 pl-8">
+                            <span className="text-[11px] text-gray-400">preço/{pr.unidade}</span>
+                            <span className="text-gray-400 text-sm">R$</span>
+                            <input type="number" step="0.01" value={it.preco} onChange={(e) => setPreco(pr.id, e.target.value)} className="w-20 rounded-lg border border-gray-200 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700" />
+                            <span className="ml-auto text-sm font-bold text-gray-900">{fmtBRL(q * it.preco)}</span>
+                          </div>
+                        )}
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -1564,6 +1669,11 @@ function TelaRelatorios({ db, nav }) {
   const pedidosP = db.pedidos.filter((p) => p.data >= desde && p.status !== "Cancelado" && p.status !== "Rascunho");
   const totalVendido = pedidosP.reduce((s, p) => s + totalPedido(p).total, 0);
   const totalComissao = pedidosP.reduce((s, p) => s + comissaoPedido(p, db.produtos), 0);
+  const custoDe = (id) => { const pr = db.produtos.find((x) => x.id === id); return pr ? (Number(pr.custo) || 0) : 0; };
+  const totalLucro = pedidosP.reduce((s, p) => {
+    const fatorDesc = 1 - ((Number(p.descontoPct) || 0) / 100);
+    return s + (p.itens || []).reduce((ss, i) => ss + (Number(i.qtd) || 0) * ((Number(i.preco) || 0) * fatorDesc - custoDe(i.produtoId)), 0);
+  }, 0);
   const nomeCliente = (id) => { const c = db.clientes.find((x) => x.id === id); return c ? c.fantasia : "Cliente"; };
 
   const porCliente = {};
@@ -1594,6 +1704,7 @@ function TelaRelatorios({ db, nav }) {
         <div className="grid grid-cols-2 gap-3">
           <Card className="p-4"><p className="text-xs text-gray-500">Total vendido</p><p className="text-lg font-extrabold text-gray-900 mt-0.5">{fmtBRL(totalVendido)}</p></Card>
           <Card className="p-4"><p className="text-xs text-gray-500">Comissão gerada</p><p className="text-lg font-extrabold text-emerald-700 mt-0.5">{fmtBRL(totalComissao)}</p></Card>
+          <Card className="p-4"><p className="text-xs text-gray-500">Lucro estimado</p><p className="text-lg font-extrabold text-emerald-700 mt-0.5">{fmtBRL(totalLucro)}</p><p className="text-[10px] text-gray-400 mt-0.5">venda − custo atual</p></Card>
           <Card className="p-4"><p className="text-xs text-gray-500">Pedidos</p><p className="text-lg font-extrabold text-gray-900 mt-0.5">{pedidosP.length}</p></Card>
           <Card className="p-4"><p className="text-xs text-gray-500">Ticket médio</p><p className="text-lg font-extrabold text-gray-900 mt-0.5">{fmtBRL(pedidosP.length ? totalVendido / pedidosP.length : 0)}</p></Card>
         </div>
@@ -1750,10 +1861,31 @@ function TelaPrecos({ db, nav, up, notify, confirmAsk }) {
     produtos: d.produtos.map((p) => {
       if (p.id !== id) return p;
       const np = { ...p, [campo]: valor };
+      if (campo === "custo") np.historicoCusto = registraCusto(p, valor);
       np.preco = calcVenda(campo === "custo" ? valor : np.custo, campo === "margem" ? valor : np.margem);
       return np;
     }),
   }));
+
+  const enviarTabela = async () => {
+    const ativos = db.produtos.filter((x) => x.status === "Ativo");
+    const linhas = [];
+    linhas.push(`*Tabela de preços — ${db.config.nomeApp}*`);
+    linhas.push(`${fmtData(hojeISO())}`);
+    CATEGORIAS.forEach((c) => {
+      const doGrupo = ativos.filter((x) => x.categoria === c).filter((x) => (Number(x.custo) || 0) > 0);
+      if (!doGrupo.length) return;
+      linhas.push("");
+      linhas.push(`*${c}*`);
+      doGrupo.forEach((x) => linhas.push(`• ${x.nome} — ${fmtBRL(precoVenda(x))}/${x.unidade}`));
+    });
+    linhas.push("");
+    linhas.push(`Qualquer dúvida, é só chamar! ${db.config.nomeRep}`);
+    const txt = linhas.join("\n");
+    const ok = await copyText(txt);
+    notify(ok ? "Tabela copiada — escolha o contato." : "Abrindo WhatsApp…");
+    window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`, "_blank");
+  };
 
   const restaurarCatalogo = () => confirmAsk("Restaurar o catálogo de demonstração (carnes, aves e peixes)? Isso substitui os produtos e empresas do catálogo compartilhado para TODA a equipe.", () => {
     const demo = dadosDemo();
@@ -1772,6 +1904,9 @@ function TelaPrecos({ db, nav, up, notify, confirmAsk }) {
     <div className="pb-28">
       <Cabecalho titulo="Preços do dia" voltar={() => nav("mais")}
         acao={<Btn variant="laranja" className="!py-1.5 !px-3 text-xs" onClick={() => nav("produtoForm")}><Plus className="w-4 h-4" /> Produto</Btn>} />
+      <div className="px-4 pt-3">
+        <Btn className="w-full" onClick={enviarTabela}><MessageCircle className="w-4 h-4" /> Enviar tabela de preços no WhatsApp</Btn>
+      </div>
       <div className="px-4 pt-4 space-y-3">
         <div className="rounded-xl bg-sky-50 text-sky-800 text-xs px-3 py-2">
           Mexa só no <b>custo</b> e na <b>margem %</b>. O valor de venda é calculado sozinho. Preços valem para toda a equipe.
@@ -1801,12 +1936,12 @@ function TelaPrecos({ db, nav, up, notify, confirmAsk }) {
                       <span className="text-2xl">{p.foto}</span>
                       <div className="min-w-0">
                         <p className="font-bold text-gray-900 truncate">{p.nome}</p>
-                        <p className="text-[11px] text-gray-400">{p.categoria}</p>
+                        <p className="text-[11px] text-gray-400">{p.categoria}{(() => { const ant = custoAnterior(p); if (ant == null || ant === custo) return ""; const subiu = custo > ant; return ` · custo ${subiu ? "▲" : "▼"} (era ${fmtBRL(ant)})`; })()}</p>
                       </div>
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-extrabold text-emerald-700 leading-none">{fmtBRL(venda)}</p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">venda / kg</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">venda / {p.unidade}</p>
                     </div>
                   </div>
 

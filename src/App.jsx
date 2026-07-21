@@ -4,7 +4,7 @@ import {
   ChevronUp, ChevronDown, Check, X, AlertTriangle, Clock, TrendingUp, DollarSign,
   Target, Calendar, MapPin, Edit3, Trash2, Copy, Printer, Download, Upload,
   RefreshCw, Settings, BarChart3, Briefcase, Package, ClipboardList, MessageSquare,
-  ArrowLeft, Route, CheckCircle2, Filter, Map as MapIcon, Store, FileText, LogOut
+  ArrowLeft, Route, CheckCircle2, Filter, Map as MapIcon, Store, FileText, LogOut, Tag
 } from "lucide-react";
 import Auth from "./Auth";
 import {
@@ -42,10 +42,19 @@ async function copyText(t) {
   }
 }
 
+/* ---------------- Preço: custo + margem => venda ---------------- */
+const calcVenda = (custo, margem) => Math.round(((Number(custo) || 0) * (1 + (Number(margem) || 0) / 100)) * 100) / 100;
+const precoVenda = (p) => (p && p.custo != null && p.margem != null) ? calcVenda(p.custo, p.margem) : ((p && p.preco) || 0);
+const normalizaProduto = (p) => {
+  const margem = (typeof p.margem === "number") ? p.margem : 15;
+  const custo = (typeof p.custo === "number") ? p.custo : (Number(p.preco) || 0);
+  return { ...p, custo, margem, preco: calcVenda(custo, margem) };
+};
+
 /* ---------------- Constantes ---------------- */
 const REGIOES = ["Asa Norte", "Asa Sul", "Guará", "Águas Claras", "Taguatinga", "Ceilândia", "Samambaia", "Gama", "Santa Maria", "Sobradinho", "Planaltina", "Vicente Pires"];
 const TIPOS_ESTAB = ["Supermercado", "Mercadinho", "Restaurante", "Padaria", "Lanchonete", "Hotel", "Cozinha industrial", "Pizzaria", "Empório", "Outro"];
-const CATEGORIAS = ["Laticínios", "Congelados", "Bebidas", "Mercearia", "Doces", "Embutidos", "Molhos e temperos"];
+const CATEGORIAS = ["Bovino", "Suíno", "Ave", "Peixe", "Outros"];
 const FORMAS_PGTO = ["Boleto 28 dias", "Boleto 14 dias", "Pix à vista", "Pix 7 dias", "Cartão", "Dinheiro"];
 const STATUS_PEDIDO = ["Rascunho", "Enviado", "Confirmado", "Faturado", "Entregue", "Cancelado"];
 const STATUS_VISITA = ["Não iniciada", "A caminho", "Em atendimento", "Visita concluída", "Cliente ausente", "Reagendada"];
@@ -55,32 +64,32 @@ const STATUS_COMISSAO = ["Prevista", "Aguardando pagamento do cliente", "Liberad
 
 /* ---------------- Dados de demonstração (fictícios — Brasília/DF) ---------------- */
 const seedEmpresas = [
-  { id: "e1", nome: "Laticínios Cerrado", comissaoPadrao: 5 },
-  { id: "e2", nome: "Bebidas Planalto", comissaoPadrao: 4 },
-  { id: "e3", nome: "Alimentos JK", comissaoPadrao: 6 },
+  { id: "e1", nome: "Frigorífico Boi Forte", comissaoPadrao: 5 },
+  { id: "e2", nome: "Aves & Suínos Planalto", comissaoPadrao: 5 },
+  { id: "e3", nome: "Pescados do Cerrado", comissaoPadrao: 6 },
 ];
 
 const seedProdutos = [
-  { id: "p1", nome: "Mussarela fatiada 2kg", marca: "Cerrado Lácteos", categoria: "Laticínios", codigo: "LT-101", foto: "🧀", unidade: "peça", qtdCaixa: 8, preco: 89.9, precoPromo: null, comissaoPct: 5, estoque: 140, pedidoMin: 4, validade: "45 dias", status: "Ativo", empresaId: "e1", descricao: "Mussarela fatiada para lanchonetes e pizzarias, alto rendimento.", relacionados: ["p4", "p18"] },
-  { id: "p2", nome: "Requeijão cremoso 1,5kg", marca: "Cerrado Lácteos", categoria: "Laticínios", codigo: "LT-102", foto: "🥛", unidade: "pote", qtdCaixa: 6, preco: 42.5, precoPromo: 38.9, comissaoPct: 5, estoque: 96, pedidoMin: 6, validade: "60 dias", status: "Ativo", empresaId: "e1", descricao: "Requeijão para food service, textura firme para untar e rechear.", relacionados: ["p6"] },
-  { id: "p3", nome: "Manteiga extra 500g", marca: "Cerrado Lácteos", categoria: "Laticínios", codigo: "LT-103", foto: "🧈", unidade: "pote", qtdCaixa: 24, preco: 21.9, precoPromo: null, comissaoPct: 5, estoque: 200, pedidoMin: 12, validade: "90 dias", status: "Ativo", empresaId: "e1", descricao: "Manteiga de primeira qualidade para padarias e hotéis.", relacionados: ["p15"] },
-  { id: "p4", nome: "Queijo prato peça 3kg", marca: "Cerrado Lácteos", categoria: "Laticínios", codigo: "LT-104", foto: "🧀", unidade: "peça", qtdCaixa: 4, preco: 129.0, precoPromo: null, comissaoPct: 5, estoque: 60, pedidoMin: 2, validade: "50 dias", status: "Ativo", empresaId: "e1", descricao: "Queijo prato para fatiamento em balcão frio.", relacionados: ["p1", "p18"] },
-  { id: "p5", nome: "Batata pré-frita 2kg", marca: "Geladão", categoria: "Congelados", codigo: "CG-201", foto: "🍟", unidade: "pacote", qtdCaixa: 10, preco: 28.9, precoPromo: 25.9, comissaoPct: 6, estoque: 180, pedidoMin: 10, validade: "12 meses", status: "Ativo", empresaId: "e3", descricao: "Corte 9mm, fritura rápida e crocante.", relacionados: ["p7", "p20"] },
-  { id: "p6", nome: "Pão de queijo congelado 1kg", marca: "Geladão", categoria: "Congelados", codigo: "CG-202", foto: "🥐", unidade: "pacote", qtdCaixa: 12, preco: 24.5, precoPromo: null, comissaoPct: 6, estoque: 220, pedidoMin: 12, validade: "10 meses", status: "Ativo", empresaId: "e3", descricao: "Tradicional mineiro, assa em 25 minutos.", relacionados: ["p2", "p3"] },
-  { id: "p7", nome: "Hambúrguer bovino 56g (cx 36)", marca: "Geladão", categoria: "Congelados", codigo: "CG-203", foto: "🍔", unidade: "caixa", qtdCaixa: 1, preco: 74.9, precoPromo: null, comissaoPct: 6, estoque: 90, pedidoMin: 3, validade: "8 meses", status: "Ativo", empresaId: "e3", descricao: "Blend bovino para lanchonetes, congelamento IQF.", relacionados: ["p5", "p20"] },
-  { id: "p8", nome: "Frango empanado 2kg", marca: "Geladão", categoria: "Congelados", codigo: "CG-204", foto: "🍗", unidade: "pacote", qtdCaixa: 8, preco: 39.9, precoPromo: 36.5, comissaoPct: 6, estoque: 130, pedidoMin: 8, validade: "9 meses", status: "Ativo", empresaId: "e3", descricao: "Tiras empanadas crocantes para porções.", relacionados: ["p5"] },
-  { id: "p9", nome: "Suco integral de uva 1,5L", marca: "Planalto Bebidas", categoria: "Bebidas", codigo: "BB-301", foto: "🧃", unidade: "garrafa", qtdCaixa: 6, preco: 18.9, precoPromo: null, comissaoPct: 4, estoque: 240, pedidoMin: 6, validade: "12 meses", status: "Ativo", empresaId: "e2", descricao: "Suco 100% uva, sem açúcar adicionado.", relacionados: ["p12"] },
-  { id: "p10", nome: "Guaraná 2L (fardo 6)", marca: "Planalto Bebidas", categoria: "Bebidas", codigo: "BB-302", foto: "🥤", unidade: "fardo", qtdCaixa: 1, preco: 32.9, precoPromo: 29.9, comissaoPct: 4, estoque: 300, pedidoMin: 5, validade: "6 meses", status: "Ativo", empresaId: "e2", descricao: "Refrigerante de guaraná, giro alto em mercadinhos.", relacionados: ["p11"] },
-  { id: "p11", nome: "Água mineral 510ml (cx 24)", marca: "Planalto Bebidas", categoria: "Bebidas", codigo: "BB-303", foto: "💧", unidade: "caixa", qtdCaixa: 1, preco: 22.9, precoPromo: null, comissaoPct: 4, estoque: 400, pedidoMin: 10, validade: "24 meses", status: "Ativo", empresaId: "e2", descricao: "Sem gás, tampa lacrada, ideal para restaurantes.", relacionados: ["p10"] },
-  { id: "p12", nome: "Chá gelado pêssego 1L", marca: "Planalto Bebidas", categoria: "Bebidas", codigo: "BB-304", foto: "🍑", unidade: "garrafa", qtdCaixa: 12, preco: 8.9, precoPromo: null, comissaoPct: 4, estoque: 0, pedidoMin: 12, validade: "9 meses", status: "Ativo", empresaId: "e2", descricao: "Chá pronto para beber, boa margem no varejo.", relacionados: ["p9"] },
-  { id: "p13", nome: "Azeite extra virgem 500ml", marca: "Alimentos JK", categoria: "Mercearia", codigo: "MC-401", foto: "🫒", unidade: "garrafa", qtdCaixa: 12, preco: 34.9, precoPromo: null, comissaoPct: 6, estoque: 110, pedidoMin: 6, validade: "18 meses", status: "Ativo", empresaId: "e3", descricao: "Acidez máx. 0,5%, rótulo premium.", relacionados: ["p19", "p14"] },
-  { id: "p14", nome: "Arroz tipo 1 — 5kg (fardo 6)", marca: "Alimentos JK", categoria: "Mercearia", codigo: "MC-402", foto: "🍚", unidade: "fardo", qtdCaixa: 1, preco: 138.0, precoPromo: null, comissaoPct: 3, estoque: 80, pedidoMin: 2, validade: "12 meses", status: "Ativo", empresaId: "e3", descricao: "Grãos selecionados, giro garantido em mercados.", relacionados: ["p15"] },
-  { id: "p15", nome: "Farinha de trigo 1kg (cx 10)", marca: "Alimentos JK", categoria: "Mercearia", codigo: "MC-403", foto: "🌾", unidade: "caixa", qtdCaixa: 1, preco: 44.9, precoPromo: 41.9, comissaoPct: 5, estoque: 150, pedidoMin: 5, validade: "8 meses", status: "Ativo", empresaId: "e3", descricao: "Tipo 1, ideal para panificação.", relacionados: ["p3", "p14"] },
-  { id: "p16", nome: "Goiabada cascão 500g", marca: "Doce Cerrado", categoria: "Doces", codigo: "DC-501", foto: "🍬", unidade: "unidade", qtdCaixa: 24, preco: 12.9, precoPromo: null, comissaoPct: 6, estoque: 190, pedidoMin: 12, validade: "10 meses", status: "Ativo", empresaId: "e3", descricao: "Receita tradicional, combina com queijos.", relacionados: ["p4", "p17"] },
-  { id: "p17", nome: "Chocolate ao leite barra 1kg", marca: "Doce Cerrado", categoria: "Doces", codigo: "DC-502", foto: "🍫", unidade: "barra", qtdCaixa: 10, preco: 46.9, precoPromo: 42.9, comissaoPct: 6, estoque: 70, pedidoMin: 5, validade: "12 meses", status: "Ativo", empresaId: "e3", descricao: "Cobertura e recheio para confeitarias.", relacionados: ["p16"] },
-  { id: "p18", nome: "Presunto cozido peça 3kg", marca: "Frios do Planalto", categoria: "Embutidos", codigo: "EB-601", foto: "🥓", unidade: "peça", qtdCaixa: 4, preco: 84.9, precoPromo: null, comissaoPct: 5, estoque: 85, pedidoMin: 2, validade: "40 dias", status: "Ativo", empresaId: "e1", descricao: "Fatiamento fácil, baixa perda no balcão.", relacionados: ["p1", "p4"] },
-  { id: "p19", nome: "Calabresa defumada 2,5kg", marca: "Frios do Planalto", categoria: "Embutidos", codigo: "EB-602", foto: "🌭", unidade: "pacote", qtdCaixa: 6, preco: 62.9, precoPromo: 57.9, comissaoPct: 5, estoque: 95, pedidoMin: 3, validade: "60 dias", status: "Ativo", empresaId: "e1", descricao: "Defumação natural, ideal para pizzarias.", relacionados: ["p1", "p20"] },
-  { id: "p20", nome: "Ketchup 1kg (cx 12)", marca: "Sabores JK", categoria: "Molhos e temperos", codigo: "MT-701", foto: "🍅", unidade: "caixa", qtdCaixa: 1, preco: 96.0, precoPromo: null, comissaoPct: 6, estoque: 60, pedidoMin: 2, validade: "14 meses", status: "Ativo", empresaId: "e3", descricao: "Sachê institucional e pote, para lanchonetes.", relacionados: ["p5", "p7"] },
+  { id: "p1", nome: "Coxão mole kg", marca: "Boi Forte", categoria: "Bovino", codigo: "BV-01", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 28.90, margem: 12, preco: 32.37, precoPromo: null, comissaoPct: 5, estoque: 120, pedidoMin: 5, validade: "5 dias", status: "Ativo", empresaId: "e1", descricao: "Corte magro, ótimo para bifes e escalopes.", relacionados: [] },
+  { id: "p2", nome: "Patinho kg", marca: "Boi Forte", categoria: "Bovino", codigo: "BV-02", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 27.50, margem: 12, preco: 30.80, precoPromo: null, comissaoPct: 5, estoque: 110, pedidoMin: 5, validade: "5 dias", status: "Ativo", empresaId: "e1", descricao: "Versátil, indicado para moer e para cozidos.", relacionados: [] },
+  { id: "p3", nome: "Acém kg", marca: "Boi Forte", categoria: "Bovino", codigo: "BV-03", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 22.90, margem: 15, preco: 26.34, precoPromo: null, comissaoPct: 5, estoque: 130, pedidoMin: 5, validade: "5 dias", status: "Ativo", empresaId: "e1", descricao: "Corte econômico para ensopados e picadinho.", relacionados: [] },
+  { id: "p4", nome: "Costela bovina kg", marca: "Boi Forte", categoria: "Bovino", codigo: "BV-04", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 24.90, margem: 15, preco: 28.64, precoPromo: null, comissaoPct: 5, estoque: 90, pedidoMin: 5, validade: "5 dias", status: "Ativo", empresaId: "e1", descricao: "Ideal para assados e churrasco.", relacionados: [] },
+  { id: "p5", nome: "Picanha kg", marca: "Boi Forte", categoria: "Bovino", codigo: "BV-05", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 74.90, margem: 10, preco: 82.39, precoPromo: null, comissaoPct: 5, estoque: 40, pedidoMin: 2, validade: "5 dias", status: "Ativo", empresaId: "e1", descricao: "Corte nobre, alta saída no fim de semana.", relacionados: [] },
+  { id: "p6", nome: "Músculo kg", marca: "Boi Forte", categoria: "Bovino", codigo: "BV-06", foto: "🥩", unidade: "kg", qtdCaixa: 1, custo: 26.90, margem: 14, preco: 30.67, precoPromo: null, comissaoPct: 5, estoque: 100, pedidoMin: 5, validade: "5 dias", status: "Ativo", empresaId: "e1", descricao: "Rico em colágeno, para sopas e cozidos.", relacionados: [] },
+  { id: "p7", nome: "Pernil suíno kg", marca: "Planalto", categoria: "Suíno", codigo: "SU-01", foto: "🐖", unidade: "kg", qtdCaixa: 1, custo: 16.90, margem: 18, preco: 19.94, precoPromo: null, comissaoPct: 5, estoque: 100, pedidoMin: 5, validade: "5 dias", status: "Ativo", empresaId: "e2", descricao: "Peça para assar, boa margem.", relacionados: [] },
+  { id: "p8", nome: "Costela suína kg", marca: "Planalto", categoria: "Suíno", codigo: "SU-02", foto: "🐖", unidade: "kg", qtdCaixa: 1, custo: 21.90, margem: 15, preco: 25.19, precoPromo: null, comissaoPct: 5, estoque: 80, pedidoMin: 5, validade: "5 dias", status: "Ativo", empresaId: "e2", descricao: "Costela para churrasco e forno.", relacionados: [] },
+  { id: "p9", nome: "Lombo suíno kg", marca: "Planalto", categoria: "Suíno", codigo: "SU-03", foto: "🐖", unidade: "kg", qtdCaixa: 1, custo: 19.90, margem: 16, preco: 23.08, precoPromo: null, comissaoPct: 5, estoque: 70, pedidoMin: 5, validade: "5 dias", status: "Ativo", empresaId: "e2", descricao: "Corte magro, versátil.", relacionados: [] },
+  { id: "p10", nome: "Linguiça toscana kg", marca: "Planalto", categoria: "Suíno", codigo: "SU-04", foto: "🌭", unidade: "kg", qtdCaixa: 1, custo: 15.90, margem: 20, preco: 19.08, precoPromo: null, comissaoPct: 5, estoque: 120, pedidoMin: 5, validade: "10 dias", status: "Ativo", empresaId: "e2", descricao: "Alta saída em lanchonetes e churrasco.", relacionados: [] },
+  { id: "p11", nome: "Bacon kg", marca: "Planalto", categoria: "Suíno", codigo: "SU-05", foto: "🥓", unidade: "kg", qtdCaixa: 1, custo: 23.90, margem: 18, preco: 28.20, precoPromo: null, comissaoPct: 5, estoque: 90, pedidoMin: 3, validade: "20 dias", status: "Ativo", empresaId: "e2", descricao: "Defumado, para lanches e pratos.", relacionados: [] },
+  { id: "p12", nome: "Peito de frango kg", marca: "Planalto", categoria: "Ave", codigo: "AV-01", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 13.90, margem: 18, preco: 16.40, precoPromo: null, comissaoPct: 5, estoque: 200, pedidoMin: 5, validade: "4 dias", status: "Ativo", empresaId: "e2", descricao: "Filé sem osso, grande giro.", relacionados: [] },
+  { id: "p13", nome: "Coxa e sobrecoxa kg", marca: "Planalto", categoria: "Ave", codigo: "AV-02", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 11.90, margem: 20, preco: 14.28, precoPromo: null, comissaoPct: 5, estoque: 220, pedidoMin: 5, validade: "4 dias", status: "Ativo", empresaId: "e2", descricao: "Corte econômico, muito procurado.", relacionados: [] },
+  { id: "p14", nome: "Frango inteiro kg", marca: "Planalto", categoria: "Ave", codigo: "AV-03", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 10.90, margem: 18, preco: 12.86, precoPromo: null, comissaoPct: 5, estoque: 180, pedidoMin: 5, validade: "4 dias", status: "Ativo", empresaId: "e2", descricao: "Resfriado, para assar e cozinhar.", relacionados: [] },
+  { id: "p15", nome: "Asa de frango kg", marca: "Planalto", categoria: "Ave", codigo: "AV-04", foto: "🍗", unidade: "kg", qtdCaixa: 1, custo: 15.90, margem: 16, preco: 18.44, precoPromo: null, comissaoPct: 5, estoque: 140, pedidoMin: 5, validade: "4 dias", status: "Ativo", empresaId: "e2", descricao: "Alta saída em bares e petiscarias.", relacionados: [] },
+  { id: "p16", nome: "Filé de tilápia kg", marca: "Pescados", categoria: "Peixe", codigo: "PX-01", foto: "🐟", unidade: "kg", qtdCaixa: 1, custo: 32.90, margem: 15, preco: 37.84, precoPromo: null, comissaoPct: 6, estoque: 90, pedidoMin: 3, validade: "3 dias", status: "Ativo", empresaId: "e3", descricao: "Filé limpo, sem espinhas.", relacionados: [] },
+  { id: "p17", nome: "Salmão fresco kg", marca: "Pescados", categoria: "Peixe", codigo: "PX-02", foto: "🐟", unidade: "kg", qtdCaixa: 1, custo: 79.90, margem: 12, preco: 89.49, precoPromo: null, comissaoPct: 6, estoque: 40, pedidoMin: 2, validade: "3 dias", status: "Ativo", empresaId: "e3", descricao: "Posta/filé, produto premium.", relacionados: [] },
+  { id: "p18", nome: "Filé de merluza kg", marca: "Pescados", categoria: "Peixe", codigo: "PX-03", foto: "🐟", unidade: "kg", qtdCaixa: 1, custo: 27.90, margem: 15, preco: 32.09, precoPromo: null, comissaoPct: 6, estoque: 90, pedidoMin: 3, validade: "3 dias", status: "Ativo", empresaId: "e3", descricao: "Filé congelado, prático.", relacionados: [] },
+  { id: "p19", nome: "Sardinha kg", marca: "Pescados", categoria: "Peixe", codigo: "PX-04", foto: "🐟", unidade: "kg", qtdCaixa: 1, custo: 18.90, margem: 18, preco: 22.30, precoPromo: null, comissaoPct: 6, estoque: 100, pedidoMin: 5, validade: "3 dias", status: "Ativo", empresaId: "e3", descricao: "Fresca, para fritura e assados.", relacionados: [] },
+  { id: "p20", nome: "Camarão limpo kg", marca: "Pescados", categoria: "Peixe", codigo: "PX-05", foto: "🦐", unidade: "kg", qtdCaixa: 1, custo: 54.90, margem: 14, preco: 62.59, precoPromo: null, comissaoPct: 6, estoque: 50, pedidoMin: 2, validade: "3 dias", status: "Ativo", empresaId: "e3", descricao: "Limpo e descascado, alta margem.", relacionados: [] },
 ];
 
 const seedClientes = [
@@ -499,6 +508,14 @@ function TelaInicio({ db, nav }) {
         <Card className="p-3 text-center" onClick={() => nav("prospeccao")}>
           <p className="text-xl font-extrabold text-sky-600">{propostas}</p>
           <p className="text-[11px] font-semibold text-gray-500 leading-tight">propostas abertas</p>
+        </Card>
+      </div>
+
+      <div className="px-4 mt-3">
+        <Card className="p-4 flex items-center gap-3" onClick={() => nav("precos")}>
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center"><Tag className="w-5 h-5 text-emerald-700" /></div>
+          <div className="flex-1"><p className="font-bold text-gray-900">Atualizar preços do dia</p><p className="text-xs text-gray-500">Custo, margem e valor de venda por categoria</p></div>
+          <Plus className="w-4 h-4 text-emerald-700" />
         </Card>
       </div>
 
@@ -1111,7 +1128,7 @@ function PedidoForm({ db, view, nav, up, notify }) {
     setItens((arr) => {
       const ex = arr.find((i) => i.produtoId === pr.id);
       if (ex) return arr.map((i) => (i.produtoId === pr.id ? { ...i, qtd: i.qtd + 1 } : i));
-      return [...arr, { produtoId: pr.id, qtd: pr.pedidoMin || 1, preco: pr.precoPromo || pr.preco }];
+      return [...arr, { produtoId: pr.id, qtd: pr.pedidoMin || 1, preco: precoVenda(pr) }];
     });
   };
   const setQtd = (id, q) => setItens((arr) => arr.map((i) => (i.produtoId === id ? { ...i, qtd: Math.max(0, q) } : i)).filter((i) => i.qtd > 0));
@@ -1186,7 +1203,7 @@ function PedidoForm({ db, view, nav, up, notify }) {
               {produtosFiltrados.slice(0, 8).map((pr) => (
                 <button key={pr.id} onClick={() => { addItem(pr); setBuscaProd(""); }} className="w-full flex items-center gap-3 p-2.5 rounded-xl border border-gray-100 hover:bg-emerald-50 text-left">
                   <span className="text-xl">{pr.foto}</span>
-                  <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-gray-800 truncate">{pr.nome}</p><p className="text-xs text-gray-500">{fmtBRL(pr.precoPromo || pr.preco)} · mín {pr.pedidoMin}</p></div>
+                  <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-gray-800 truncate">{pr.nome}</p><p className="text-xs text-gray-500">{fmtBRL(precoVenda(pr))} · mín {pr.pedidoMin} kg</p></div>
                   <Plus className="w-4 h-4 text-emerald-700" />
                 </button>
               ))}
@@ -1250,14 +1267,14 @@ function TelaProdutos({ db, nav }) {
                     <p className="font-bold text-gray-900 truncate">{p.nome}</p>
                     <p className="text-xs text-gray-500">{p.marca} · {empresaNome(p.empresaId)}</p>
                     <div className="flex items-center gap-2 mt-1.5">
-                      {p.precoPromo ? (
-                        <><span className="text-sm font-extrabold text-emerald-700">{fmtBRL(p.precoPromo)}</span><span className="text-xs text-gray-400 line-through">{fmtBRL(p.preco)}</span></>
-                      ) : <span className="text-sm font-extrabold text-gray-900">{fmtBRL(p.preco)}</span>}
+                      <span className="text-sm font-extrabold text-emerald-700">{fmtBRL(precoVenda(p))}</span>
+                      <span className="text-xs text-gray-400">venda</span>
                     </div>
                     <div className="flex flex-wrap gap-1.5 mt-1.5">
                       <Badge tom="cinza">{p.categoria}</Badge>
-                      <Badge tom="verde">comissão {p.comissaoPct}%</Badge>
-                      {p.estoque === 0 ? <Badge tom="vermelho">Sem estoque</Badge> : <Badge tom="cinza">{p.estoque} un.</Badge>}
+                      <Badge tom="cinza">custo {fmtBRL(p.custo ?? p.preco)}</Badge>
+                      <Badge tom="verde">+{p.margem ?? 15}%</Badge>
+                      {p.estoque === 0 ? <Badge tom="vermelho">Sem estoque</Badge> : <Badge tom="cinza">{p.estoque} kg</Badge>}
                     </div>
                   </div>
                 </div>
@@ -1274,15 +1291,16 @@ function TelaProdutos({ db, nav }) {
 function ProdutoForm({ db, view, nav, up, notify, confirmAsk }) {
   const existente = db.produtos.find((x) => x.id === view.id);
   const [f, setF] = useState(existente || {
-    id: uid(), nome: "", marca: "", categoria: CATEGORIAS[0], codigo: "", foto: "📦", unidade: "unidade",
-    qtdCaixa: 1, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "",
+    id: uid(), nome: "", marca: "", categoria: CATEGORIAS[0], codigo: "", foto: "🥩", unidade: "kg",
+    qtdCaixa: 1, custo: 0, margem: 15, preco: 0, precoPromo: null, comissaoPct: 5, estoque: 0, pedidoMin: 1, validade: "",
     status: "Ativo", empresaId: db.empresas[0]?.id || "", descricao: "", relacionados: [],
   });
   const set = (k, v) => setF((o) => ({ ...o, [k]: v }));
   const salvar = () => {
     if (!f.nome.trim()) return notify("Informe o nome do produto.", "erro");
-    if (existente) up((d) => ({ produtos: d.produtos.map((x) => (x.id === f.id ? f : x)) }));
-    else up((d) => ({ produtos: [...d.produtos, f] }));
+    const ff = { ...f, preco: calcVenda(f.custo, f.margem) };
+    if (existente) up((d) => ({ produtos: d.produtos.map((x) => (x.id === ff.id ? ff : x)) }));
+    else up((d) => ({ produtos: [...d.produtos, ff] }));
     notify(existente ? "Produto atualizado. ✅" : "Produto cadastrado. ✅");
     nav("produtos");
   };
@@ -1306,8 +1324,12 @@ function ProdutoForm({ db, view, nav, up, notify, confirmAsk }) {
           <Sel label="Empresa" value={f.empresaId} onChange={(e) => set("empresaId", e.target.value)}>{db.empresas.map((em) => <option key={em.id} value={em.id}>{em.nome}</option>)}</Sel>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Inp label="Preço (R$)" type="number" step="0.01" value={f.preco} onChange={(e) => set("preco", Number(e.target.value))} />
-          <Inp label="Preço promocional" type="number" step="0.01" value={f.precoPromo ?? ""} onChange={(e) => set("precoPromo", e.target.value === "" ? null : Number(e.target.value))} />
+          <Inp label="Custo de compra (R$)" type="number" step="0.01" value={f.custo} onChange={(e) => set("custo", Number(e.target.value))} />
+          <Inp label="Margem (%)" type="number" min="1" max="30" value={f.margem} onChange={(e) => set("margem", Number(e.target.value))} />
+        </div>
+        <div className="rounded-xl bg-emerald-50 px-4 py-3 flex items-center justify-between">
+          <span className="text-sm text-emerald-800 font-semibold">Valor de venda</span>
+          <span className="text-lg font-extrabold text-emerald-700">{fmtBRL(calcVenda(f.custo, f.margem))}</span>
         </div>
         <div className="grid grid-cols-3 gap-3">
           <Inp label="Comissão (%)" type="number" value={f.comissaoPct} onChange={(e) => set("comissaoPct", Number(e.target.value))} />
@@ -1590,7 +1612,8 @@ function TelaMais({ db, nav, onLogout }) {
     ["prospeccao", Target, "Prospecção", "Funil de novos clientes"],
     ["mensagens", MessageSquare, "Mensagens prontas", "Modelos para WhatsApp"],
     ["relatorios", BarChart3, "Relatórios", "Vendas, categorias e produtos"],
-    ["produtos", Package, "Catálogo de produtos", "Preços, estoque e comissões"],
+    ["precos", Tag, "Preços do dia", "Custo, margem e valor de venda"],
+    ["produtos", Package, "Catálogo de produtos", "Cadastro, estoque e comissões"],
     ["config", Settings, "Configurações", "Perfil, meta, dados e conta"],
   ];
   return (
@@ -1718,6 +1741,105 @@ function TelaFaltaConfig() {
   );
 }
 
+/* ---------------- Tela — Preços do dia (custo, margem, venda) ---------------- */
+function TelaPrecos({ db, nav, up, notify, confirmAsk }) {
+  const [cat, setCat] = useState("Todas");
+  const [busca, setBusca] = useState("");
+
+  const setCampo = (id, campo, valor) => up((d) => ({
+    produtos: d.produtos.map((p) => {
+      if (p.id !== id) return p;
+      const np = { ...p, [campo]: valor };
+      np.preco = calcVenda(campo === "custo" ? valor : np.custo, campo === "margem" ? valor : np.margem);
+      return np;
+    }),
+  }));
+
+  const restaurarCatalogo = () => confirmAsk("Restaurar o catálogo de demonstração (carnes, aves e peixes)? Isso substitui os produtos e empresas do catálogo compartilhado para TODA a equipe.", () => {
+    const demo = dadosDemo();
+    up(() => ({ produtos: demo.produtos.map(normalizaProduto), empresas: demo.empresas }));
+    notify("Catálogo de demonstração restaurado. ✅");
+  });
+
+  let lista = db.produtos.filter((p) => {
+    const q = busca.trim().toLowerCase();
+    if (q && !(`${p.nome} ${p.marca}`.toLowerCase().includes(q))) return false;
+    if (cat !== "Todas" && p.categoria !== cat) return false;
+    return true;
+  });
+
+  return (
+    <div className="pb-28">
+      <Cabecalho titulo="Preços do dia" voltar={() => nav("mais")}
+        acao={<Btn variant="laranja" className="!py-1.5 !px-3 text-xs" onClick={() => nav("produtoForm")}><Plus className="w-4 h-4" /> Produto</Btn>} />
+      <div className="px-4 pt-4 space-y-3">
+        <div className="rounded-xl bg-sky-50 text-sky-800 text-xs px-3 py-2">
+          Mexa só no <b>custo</b> e na <b>margem %</b>. O valor de venda é calculado sozinho. Preços valem para toda a equipe.
+        </div>
+        <div className="relative">
+          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar produto…"
+            className="w-full rounded-xl border border-gray-200 bg-white pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700" />
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {["Todas", ...CATEGORIAS].map((c) => <Chip key={c} ativo={cat === c} onClick={() => setCat(c)}>{c}</Chip>)}
+        </div>
+
+        {lista.length === 0 ? (
+          <Vazio icone={Tag} titulo="Nenhum produto" texto="Ajuste a busca, ou restaure o catálogo de demonstração abaixo." />
+        ) : (
+          <div className="space-y-2.5">
+            {lista.map((p) => {
+              const custo = Number(p.custo) || 0;
+              const margem = Number(p.margem) || 0;
+              const venda = calcVenda(custo, margem);
+              const lucro = venda - custo;
+              return (
+                <Card key={p.id} className="p-3.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-2xl">{p.foto}</span>
+                      <div className="min-w-0">
+                        <p className="font-bold text-gray-900 truncate">{p.nome}</p>
+                        <p className="text-[11px] text-gray-400">{p.categoria}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-extrabold text-emerald-700 leading-none">{fmtBRL(venda)}</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">venda / kg</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 mt-3">
+                    <label className="text-xs font-semibold text-gray-500 w-14">Custo</label>
+                    <span className="text-xs text-gray-400">R$</span>
+                    <input type="number" step="0.01" inputMode="decimal" value={custo}
+                      onChange={(e) => setCampo(p.id, "custo", Number(e.target.value))}
+                      className="w-24 rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-emerald-700" />
+                    <span className="ml-auto text-xs text-gray-500">lucro <span className="font-semibold text-gray-800">{fmtBRL(lucro)}</span></span>
+                  </div>
+
+                  <div className="flex items-center gap-3 mt-2.5">
+                    <label className="text-xs font-semibold text-gray-500 w-14">Margem</label>
+                    <input type="range" min="1" max="30" step="1" value={margem}
+                      onChange={(e) => setCampo(p.id, "margem", Number(e.target.value))}
+                      className="flex-1 accent-emerald-700" />
+                    <span className="text-sm font-bold text-gray-900 w-10 text-right">{margem}%</span>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        <Btn variant="contorno" className="w-full mt-2" onClick={restaurarCatalogo}>
+          <RefreshCw className="w-4 h-4" /> Restaurar catálogo de demonstração
+        </Btn>
+      </div>
+    </div>
+  );
+}
+
 /* ==================== App raiz ==================== */
 export default function App() {
   const [session, setSession] = useState(null);
@@ -1789,7 +1911,7 @@ export default function App() {
         };
         refUser.current = JSON.stringify(parteUsuario);
         refCat.current = JSON.stringify({ produtos: cat.produtos, empresas: cat.empresas });
-        setDbRaw({ ...parteUsuario, produtos: cat.produtos, empresas: cat.empresas });
+        setDbRaw({ ...parteUsuario, produtos: (cat.produtos || []).map(normalizaProduto), empresas: cat.empresas });
         carregado.current = true;
       } catch (e) {
         console.error(e);
@@ -1840,7 +1962,7 @@ export default function App() {
   const abaAtiva = ({
     inicio: "inicio", rota: "rota", clientes: "clientes", cliente: "clientes",
     clienteForm: "clientes", visitaForm: "clientes", pedidos: "pedidos", pedido: "pedidos",
-    pedidoForm: "pedidos", produtos: "mais", produtoForm: "mais", comissoes: "mais",
+    pedidoForm: "pedidos", precos: "mais", produtos: "mais", produtoForm: "mais", comissoes: "mais",
     prospeccao: "mais", oportunidadeForm: "mais", mensagens: "mais", relatorios: "mais",
     config: "mais", mais: "mais",
   })[view.t] || "inicio";
@@ -1856,6 +1978,7 @@ export default function App() {
       case "pedidos": return <TelaPedidos {...props} />;
       case "pedido": return <PedidoDetalhe {...props} />;
       case "pedidoForm": return <PedidoForm {...props} />;
+      case "precos": return <TelaPrecos {...props} />;
       case "produtos": return <TelaProdutos {...props} />;
       case "produtoForm": return <ProdutoForm {...props} />;
       case "comissoes": return <TelaComissoes {...props} />;

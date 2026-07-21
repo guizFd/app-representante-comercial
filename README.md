@@ -101,3 +101,4 @@ O ícone verde do GiroFood aparece como um app normal e abre em tela cheia.
 
 Registre um domínio (ex.: em registro.br) e conecte no Vercel em
 **Settings → Domains** — o Vercel mostra qual DNS apontar. O HTTPS é automático.
+att carnes

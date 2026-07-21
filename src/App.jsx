@@ -65,6 +65,35 @@ const custoAnterior = (produto) => {
   return ant.length ? ant[ant.length - 1].custo : null;
 };
 
+/* ---------------- Catálogo OFICIAL (produtos fixos) ----------------
+   Os produtos oficiais estão sempre presentes. Esta função mescla o que já
+   está salvo com a lista oficial: garante que todos os oficiais existam,
+   preserva os preços já definidos (custo, margem, histórico, estoque),
+   mantém produtos extras cadastrados pelo usuário (das mesmas categorias)
+   e remove itens antigos que não fazem parte do ramo (ex.: catálogo velho). */
+const sincronizaCatalogo = (salvos) => {
+  const oficiais = seedProdutos;
+  const porCodigo = {};
+  (salvos || []).forEach((s) => { if (s && s.codigo) porCodigo[s.codigo] = s; });
+  const base = oficiais.map((o) => {
+    const s = porCodigo[o.codigo];
+    if (!s) return normalizaProduto(o);
+    return normalizaProduto({
+      ...o,
+      custo: (typeof s.custo === "number") ? s.custo : o.custo,
+      margem: (typeof s.margem === "number") ? s.margem : o.margem,
+      estoque: (typeof s.estoque === "number") ? s.estoque : o.estoque,
+      status: s.status || o.status,
+      historicoCusto: Array.isArray(s.historicoCusto) ? s.historicoCusto : [],
+    });
+  });
+  const codigosOficiais = new Set(oficiais.map((o) => o.codigo));
+  const extras = (salvos || [])
+    .filter((s) => s && !codigosOficiais.has(s.codigo) && CATEGORIAS.includes(s.categoria))
+    .map(normalizaProduto);
+  return [...base, ...extras];
+};
+
 /* ---------------- Constantes ---------------- */
 const REGIOES = ["Asa Norte", "Asa Sul", "Guará", "Águas Claras", "Taguatinga", "Ceilândia", "Samambaia", "Gama", "Santa Maria", "Sobradinho", "Planaltina", "Vicente Pires"];
 const TIPOS_ESTAB = ["Supermercado", "Mercadinho", "Restaurante", "Padaria", "Lanchonete", "Hotel", "Cozinha industrial", "Pizzaria", "Empório", "Outro"];
@@ -1772,15 +1801,16 @@ function TelaConfig({ db, nav, up, notify, confirmAsk, setDb, onLogout }) {
   };
 
   // Apaga apenas os SEUS dados; o catálogo compartilhado é mantido.
-  const apagar = () => confirmAsk("Apagar todos os SEUS dados (clientes, pedidos, visitas, prospecção e rotas)? O catálogo de produtos compartilhado não é afetado. Essa ação não pode ser desfeita.", () => {
+  // Limpa só os clientes/pedidos/visitas/prospecção/rotas de exemplo. NÃO toca nos produtos.
+  const apagar = () => confirmAsk("Limpar os clientes e pedidos de exemplo? Isso apaga clientes, pedidos, visitas, prospecção e rotas — mas a lista de produtos NÃO é afetada. Essa ação não pode ser desfeita.", () => {
     setDb({ ...db, clientes: [], pedidos: [], visitas: [], oportunidades: [], rotas: {} });
-    notify("Seus dados foram apagados.");
+    notify("Dados de exemplo limpos. Os produtos continuam.");
   });
-  // Restaura a demonstração nos seus dados; mantém o catálogo compartilhado.
-  const restaurar = () => confirmAsk("Restaurar os dados de demonstração nos SEUS dados? O catálogo compartilhado é mantido.", () => {
+  // Recarrega os clientes/pedidos de exemplo; mantém os produtos.
+  const restaurar = () => confirmAsk("Recarregar os clientes e pedidos de exemplo? A lista de produtos é mantida.", () => {
     const demo = dadosDemo();
-    setDb({ ...demo, produtos: db.produtos, empresas: db.empresas });
-    notify("Dados de demonstração restaurados. ✅");
+    setDb({ ...db, clientes: demo.clientes, pedidos: demo.pedidos, visitas: demo.visitas, oportunidades: demo.oportunidades, rotas: demo.rotas });
+    notify("Exemplos recarregados. ✅");
   });
   const sair = () => confirmAsk("Sair da sua conta neste aparelho?", () => { onLogout && onLogout(); });
 
@@ -1809,9 +1839,10 @@ function TelaConfig({ db, nav, up, notify, confirmAsk, setDb, onLogout }) {
         </Card>
 
         <Card className="p-4 space-y-3">
-          <p className="font-bold text-gray-900">Dados de demonstração</p>
-          <Btn variant="claro" className="w-full" onClick={restaurar}><RefreshCw className="w-4 h-4" /> Restaurar demonstração</Btn>
-          <Btn variant="perigo" className="w-full" onClick={apagar}><Trash2 className="w-4 h-4" /> Apagar meus dados</Btn>
+          <p className="font-bold text-gray-900">Dados de exemplo</p>
+          <p className="text-xs text-gray-500">Os produtos são fixos e não somem. Aqui você só mexe nos clientes e pedidos de exemplo.</p>
+          <Btn variant="perigo" className="w-full" onClick={apagar}><Trash2 className="w-4 h-4" /> Limpar clientes e pedidos de exemplo</Btn>
+          <Btn variant="claro" className="w-full" onClick={restaurar}><RefreshCw className="w-4 h-4" /> Recarregar exemplos</Btn>
         </Card>
 
         <Card className="p-4 space-y-3">
@@ -1887,10 +1918,9 @@ function TelaPrecos({ db, nav, up, notify, confirmAsk }) {
     window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`, "_blank");
   };
 
-  const restaurarCatalogo = () => confirmAsk("Restaurar o catálogo de demonstração (carnes, aves e peixes)? Isso substitui os produtos e empresas do catálogo compartilhado para TODA a equipe.", () => {
-    const demo = dadosDemo();
-    up(() => ({ produtos: demo.produtos.map(normalizaProduto), empresas: demo.empresas }));
-    notify("Catálogo de demonstração restaurado. ✅");
+  const restaurarCatalogo = () => confirmAsk("Recarregar a lista oficial de produtos? Traz de volta qualquer item que tenha sido apagado por engano. Os preços que você já definiu são mantidos.", () => {
+    up((d) => ({ produtos: sincronizaCatalogo(d.produtos) }));
+    notify("Catálogo oficial recarregado. ✅");
   });
 
   let lista = db.produtos.filter((p) => {
@@ -1968,7 +1998,7 @@ function TelaPrecos({ db, nav, up, notify, confirmAsk }) {
         )}
 
         <Btn variant="contorno" className="w-full mt-2" onClick={restaurarCatalogo}>
-          <RefreshCw className="w-4 h-4" /> Restaurar catálogo de demonstração
+          <RefreshCw className="w-4 h-4" /> Recarregar catálogo oficial
         </Btn>
       </div>
     </div>
@@ -2024,12 +2054,13 @@ export default function App() {
       carregado.current = false;
       try {
         const demo = dadosDemo();
-        // catálogo compartilhado (id=1)
-        let cat = await lerCatalogo();
-        if (!cat || !cat.produtos) {
-          cat = { produtos: demo.produtos, empresas: demo.empresas };
-          await gravarCatalogo(cat);
-        }
+        // catálogo compartilhado (id=1) — os produtos oficiais são sempre garantidos
+        const catSalvo = await lerCatalogo();
+        const produtosSync = sincronizaCatalogo(catSalvo && catSalvo.produtos ? catSalvo.produtos : []);
+        const empresasFinal = (catSalvo && Array.isArray(catSalvo.empresas) && catSalvo.empresas.length) ? catSalvo.empresas : demo.empresas;
+        const cat = { produtos: produtosSync, empresas: empresasFinal };
+        // grava de volta para migrar/atualizar contas antigas (ex.: catálogo velho)
+        await gravarCatalogo(cat);
         // dados do usuário
         let ud = await lerDocUsuario(session.user.id);
         if (!ud || !ud.clientes) {
@@ -2046,7 +2077,7 @@ export default function App() {
         };
         refUser.current = JSON.stringify(parteUsuario);
         refCat.current = JSON.stringify({ produtos: cat.produtos, empresas: cat.empresas });
-        setDbRaw({ ...parteUsuario, produtos: (cat.produtos || []).map(normalizaProduto), empresas: cat.empresas });
+        setDbRaw({ ...parteUsuario, produtos: cat.produtos, empresas: cat.empresas });
         carregado.current = true;
       } catch (e) {
         console.error(e);
